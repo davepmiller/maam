@@ -1,0 +1,17 @@
+{
+  "name": "MAAM",
+  "short_name": "MAAM",
+  "description": "Medicare DMEPOS allowed amounts. Type a HCPCS code, get the rate for your locality.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12161B",
+  "theme_color": "#12161B",
+  "categories": ["medical", "business", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

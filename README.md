@@ -1,4 +1,4 @@
-# DMEPOS Allowed Amounts — Northwest Respiratory & Medical
+# MAAM — Medicare Allowed Amounts
 
 A single-file lookup for Medicare DMEPOS allowed amounts. Open `index.html`
 and type a HCPCS code; the whole fee schedule is embedded, so it works offline
@@ -16,6 +16,8 @@ pinned in eight collapsible groups.
 | `template.html` | The page source, with a `__DATA__` placeholder for the fee schedule. Edit this, never `index.html`. |
 | `build.py` | Downloads the newest CMS quarter and writes `index.html`. Standard library only. |
 | `.github/workflows/refresh.yml` | Weekly check + automatic rebuild and commit. |
+| `manifest.json`, `sw.js`, `icon-*.png` | Make it installable as a desktop app that works offline. |
+| `make_icons.py` | Regenerates the icons. Only needed if the mark changes. |
 
 ## Rebuilding
 
@@ -68,8 +70,29 @@ other column and labels those results "ID, all areas". Don't undo that.
 
 ## Publishing
 
-`index.html` is self-contained, so any static host works. With
-`refresh.yml` running, the published copy updates itself.
+Live at **https://davepmiller.github.io/maam/**, rebuilt automatically by
+`refresh.yml`. `index.html` is self-contained, so any static host works.
+
+## Installing it as a desktop app
+
+The page ships a web app manifest and a service worker, so it installs as a
+standalone window with its own icon and keeps working without a network.
+
+**Windows — Edge** (already on every machine)
+1. Open <https://davepmiller.github.io/maam/>
+2. `…` menu → **Apps** → **Install this site as an app**
+3. Tick **Pin to taskbar** and, if you want it always there,
+   **Auto-start on device login**
+
+**Windows — Chrome**: `⋮` → **Cast, save and share** → **Install page as app**,
+then right-click the taskbar icon → **Pin to taskbar**.
+
+To keep it floating above other windows, install
+[PowerToys](https://learn.microsoft.com/windows/powertoys/) and press
+`Win + Ctrl + T` on the MAAM window.
+
+The Windows 11 Widgets board is not an option — it only accepts widgets built
+into native Windows apps, not web pages.
 
 Figures are **allowed amounts**. Medicare pays 80% after the Part B deductible.
 This is a reference, not a payment determination.

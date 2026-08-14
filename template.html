@@ -1,5 +1,10 @@
 <meta charset="utf-8">
-<title>DMEPOS Allowed Amounts</title>
+<title>MAAM</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#F1F3F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161B" media="(prefers-color-scheme: dark)">
 <style>
 :root{
   --ground:#F1F3F5; --panel:#FFFFFF; --panel-2:#E9ECEF; --line:#D3D9DF;
@@ -291,7 +296,7 @@ try{
 
 <div class="wrap">
   <div class="bar">
-    <span class="brand"><b>Allowed</b><span class="long"> &nbsp;Medicare DMEPOS</span>
+    <span class="brand"><b>MAAM</b><span class="long"> &nbsp;Medicare allowed amounts</span>
       &middot; <span id="qtr">&mdash;</span></span>
     <span class="bar-sp"></span>
     <button class="chip theme" id="themebtn" data-mode="system" aria-label="Theme: follow system">
@@ -1030,6 +1035,10 @@ $("#locsave").addEventListener("click", () => {
   }
   save(); paintLoc(); renderPins(); render(); dlg.close();
 });
+
+if ("serviceWorker" in navigator &&
+    (location.protocol === "https:" || location.hostname === "localhost"))
+  navigator.serviceWorker.register("sw.js").catch(() => {});
 
 boot().catch(err => {
   document.getElementById("results").innerHTML =
