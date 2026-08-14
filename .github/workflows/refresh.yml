@@ -1,0 +1,60 @@
+name: Refresh DMEPOS rates
+
+# CMS updates the fee schedule quarterly, but "as necessary" -- an April or
+# October file may never appear, and an off-cycle correction can. Checking
+# weekly is a HEAD request against cms.gov, so it costs nothing and picks up
+# whatever actually ships.
+
+on:
+  schedule:
+    - cron: "17 13 * * 1"     # Mondays, 13:17 UTC
+  workflow_dispatch:           # or run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-rates
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Is a newer CMS quarter published?
+        id: check
+        run: |
+          if python3 build.py --check; then
+            echo "behind=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "behind=true"  >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild the page
+        if: steps.check.outputs.behind == 'true'
+        run: python3 build.py
+
+      - name: Commit the new rates
+        if: steps.check.outputs.behind == 'true'
+        run: |
+          QUARTER=$(python3 -c "
+          import re,gzip,base64,json
+          s=open('index.html',encoding='utf-8').read()
+          m=re.search(r'id=\"payload\"[^>]*>\s*([A-Za-z0-9+/=]+)\s*<',s)
+          print(json.loads(gzip.decompress(base64.b64decode(m.group(1))))['quarter'])
+          ")
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "DMEPOS rates: $QUARTER"
+          git push
+
+      # Every rate change lands as its own commit, so `git log -p index.html`
+      # is a dated record of what CMS changed and when.
