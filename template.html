@@ -380,12 +380,12 @@ const HOME = { state:"ID", zip:"83843", rural:true, cbaIdx:-1 };
 
 // Product lines carried by Northwest Respiratory & Medical (nwdme.com).
 // [group, HCPCS, modifier] -- the modifier is the one the item is normally billed under,
-// which tracks the CMS payment category: capped rental -> RR, routinely purchased -> NU,
-// lymphedema compression -> none, surgical dressing -> AW.
+// which tracks the CMS payment category: capped rental and frequently serviced -> RR,
+// routinely purchased -> NU, lymphedema compression -> none, surgical dressing -> AW.
 // Where the client's product line and the CMS category disagree, CMS wins (see A6545).
 const CATALOG = [
   ["Sleep therapy", "E0601","RR"], ["Sleep therapy", "E0470","RR"], ["Sleep therapy", "E0471","RR"],
-  ["Sleep therapy", "E0562","RR"],
+  ["Sleep therapy", "E0466","RR"], ["Sleep therapy", "E0562","RR"],
   ["Sleep therapy", "A7030","NU"], ["Sleep therapy", "A7031","NU"], ["Sleep therapy", "A7032","NU"],
   ["Sleep therapy", "A7033","NU"], ["Sleep therapy", "A7034","NU"], ["Sleep therapy", "A7035","NU"],
   ["Sleep therapy", "A7036","NU"], ["Sleep therapy", "A7037","NU"], ["Sleep therapy", "A7038","NU"],
