@@ -311,11 +311,12 @@ try{
 
   <div class="searchwrap">
     <input id="q" autocomplete="off" spellcheck="false" autofocus
-           placeholder="A7030, E0601, or &ldquo;nasal cushion&rdquo;" aria-label="Search HCPCS code or description">
+           placeholder="Filter the list &mdash; or &ldquo;/&rdquo; for every code"
+           aria-label="Filter the list below, or start with a slash to search the whole fee schedule">
   </div>
   <div class="hint">
     <span id="hintpin"><kbd>&#8629;</kbd> pin top result</span>
-    <span><kbd>/</kbd> search</span>
+    <span><kbd>/</kbd> search every code</span>
     <span><kbd>esc</kbd> clear</span>
   </div>
 
@@ -516,7 +517,6 @@ async function boot(){
 
   load();
   paintLoc();
-  renderPins();
   render();
   runCheck(false);   // non-blocking: the page is usable before the check returns
 }
@@ -735,13 +735,29 @@ function indexOfKey(k){
   const idxs = CODEIDX.get(k.split("|")[0]) || [];
   return idxs.find(i => keyOf(i) === k);
 }
+/* The search box narrows the list below it. A leading "/" escapes that and searches
+   the whole fee schedule instead, rendering matches above an untouched list. */
+const isGlobal = v => v.trimStart().startsWith("/");
+const bareQuery = v => v.trim().replace(/^\/+/, "").trim().toUpperCase();
+// what the list is filtered by right now, or null when it isn't
+const listFilter = () => {
+  const v = $("#q").value;
+  return isGlobal(v) ? null : (v.trim().toUpperCase() || null);
+};
+// same shape as search(): match the code from its start, the description only once
+// the query is specific enough that a substring hit means something
+const rowMatches = (i, q) =>
+  DB.rows[i][0].startsWith(q) || (q.length >= 3 && DB.rows[i][7].toUpperCase().includes(q));
+
 // pins grouped in catalog order, skipping any key the current dataset no longer has.
 // a group appears the moment its first code is pinned and disappears with its last.
 function pinGroups(){
+  const q = listFilter();
   const groups = new Map();
   for (const p of pins){
     const i = indexOfKey(p.k);
     if (i === undefined) continue;
+    if (q && !rowMatches(i, q)) continue;
     const g = groupOf(p.k);
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(i);
@@ -754,15 +770,18 @@ function togglePin(i){
   const k = keyOf(i);
   if (pinned(i)) pins = pins.filter(p => p.k !== k);
   else pins.push({k});
-  save(); renderPins(); render();
+  save(); render();
 }
 
 let lastTop = -1;
 function render(){
-  const res = search($("#q").value);
+  renderPins();                       // the list tracks the filter on every keystroke
   const box = $("#results");
   box.innerHTML = "";
-  if (!$("#q").value.trim()){ lastTop = -1; return; }
+  if (!isGlobal($("#q").value)){ lastTop = -1; return; }
+  const q = bareQuery($("#q").value);
+  if (!q){ lastTop = -1; return; }
+  const res = search(q);
   if (!res.length){
     box.innerHTML = `<div class="empty">Nothing on the DMEPOS fee schedule matches that.
       Try a partial code like <b>A70</b>. Codes that are individually priced, gap&#8209;filled, or paid
@@ -790,7 +809,8 @@ function rowEl(i, withX){
   main.innerHTML = `<span class="rc">${row[0]}</span><span class="rm">${row[1]||""}</span>
     <span class="rd">${esc(row[7])}</span>
     <span class="rv">${r.amt>0 ? usd(r.amt) + (isRental(row)?"/mo":"") : "&mdash;"}</span>`;
-  main.addEventListener("click", () => { $("#q").value = row[0]; render(); $("#q").select(); });
+  // drilling into a row means seeing its card, which only the global view renders
+  main.addEventListener("click", () => { $("#q").value = "/" + row[0]; render(); $("#q").select(); });
   el.appendChild(main);
   if (withX && PIN_ON){
     const x = document.createElement("button");
@@ -804,22 +824,26 @@ function rowEl(i, withX){
 
 function renderPins(){
   const wrap = $("#pinwrap"), box = $("#pins");
+  const q = listFilter();
   const groups = pinGroups();
   wrap.hidden = false;
   box.innerHTML = "";
   if (!groups.size){
-    box.innerHTML = PIN_ON
-      ? `<div class="empty">No codes pinned. Search a code and press
-         <kbd>&#8629;</kbd> to pin it, or <button class="link" id="restore">load the catalog</button>.</div>`
-      : `<div class="empty">No codes to show.</div>`;
-    if (PIN_ON)
-      $("#restore").addEventListener("click", () => { pins = defaultPins(); save(); renderPins(); render(); });
+    if (q)
+      box.innerHTML = `<div class="empty">Nothing in this list matches <b>${esc(q)}</b>.
+        Start over with <kbd>/</kbd> to search every code on the fee schedule.</div>`;
+    else if (PIN_ON){
+      box.innerHTML = `<div class="empty">No codes pinned. Search a code and press
+        <kbd>&#8629;</kbd> to pin it, or <button class="link" id="restore">load the catalog</button>.</div>`;
+      $("#restore").addEventListener("click", () => { pins = defaultPins(); save(); render(); });
+    }
+    else box.innerHTML = `<div class="empty">No codes to show.</div>`;
     return;
   }
   let n = 0;
   for (const [g, idxs] of groups){
     const id = "grp" + (n++);
-    const open = !collapsed.includes(g);
+    const open = q ? true : !collapsed.includes(g);   // a filter hit must never sit behind a fold
 
     const head = document.createElement("button");
     head.className = "sec grp";
@@ -1016,7 +1040,8 @@ $("#themebtn").addEventListener("click", cycleTheme);
 $("#q").addEventListener("input", render);
 $("#q").addEventListener("keydown", e => {
   if (e.key === "Enter"){
-    const res = search($("#q").value);
+    if (!isGlobal($("#q").value)) return;   // filtering the list pins nothing
+    const res = search(bareQuery($("#q").value));
     if (res.length){
       if (PIN_ON && !pinned(res[0])) togglePin(res[0]);
       $("#q").select();
@@ -1027,7 +1052,10 @@ $("#q").addEventListener("keydown", e => {
 });
 document.addEventListener("keydown", e => {
   if (e.key === "/" && document.activeElement !== $("#q")){
-    e.preventDefault(); $("#q").focus(); $("#q").select();
+    e.preventDefault();
+    $("#q").value = "/";              // the key that focuses the box also starts the global search
+    $("#q").focus();
+    render();
   }
 });
 $("#results").addEventListener("click", e => {
@@ -1038,7 +1066,7 @@ $("#results").addEventListener("click", e => {
   else if (b.dataset.act === "copy") copy(pinLine(i));
 });
 $("#copyall").addEventListener("click", () => copy(copyText()));
-$("#clearpins").addEventListener("click", () => { pins = []; save(); renderPins(); render(); });
+$("#clearpins").addEventListener("click", () => { pins = []; save(); render(); });
 if (!PIN_ON){                       // nothing is pinned, nothing to clear, no key to pin with
   $("#pinlabel").hidden = true;
   $("#clearpins").hidden = true;
@@ -1093,7 +1121,7 @@ $("#locsave").addEventListener("click", () => {
   } else {
     loc.zip = ""; loc.state = st; loc.rural = false; loc.cbaIdx = -1;
   }
-  save(); paintLoc(); renderPins(); render(); dlg.close();
+  save(); paintLoc(); render(); dlg.close();
 });
 
 if ("serviceWorker" in navigator &&
