@@ -314,7 +314,7 @@ try{
            placeholder="A7030, E0601, or &ldquo;nasal cushion&rdquo;" aria-label="Search HCPCS code or description">
   </div>
   <div class="hint">
-    <span><kbd>&#8629;</kbd> pin top result</span>
+    <span id="hintpin"><kbd>&#8629;</kbd> pin top result</span>
     <span><kbd>/</kbd> search</span>
     <span><kbd>esc</kbd> clear</span>
   </div>
@@ -322,7 +322,7 @@ try{
   <div id="results"></div>
 
   <div id="pinwrap" hidden>
-    <div class="sec"><span>Pinned</span><i></i><button id="copyall">copy list</button><button id="clearpins">clear</button></div>
+    <div class="sec"><span id="pinlabel">Pinned</span><i></i><button id="copyall">copy list</button><button id="clearpins">clear</button></div>
     <div id="pins"></div>
   </div>
 
@@ -369,11 +369,19 @@ let DB = null, CODEIDX = new Map(), CBAIDX = new Map(), STIDX = {};
 /* ---------------- locality state ---------------- */
 const LS = "allowed.v1";
 
+// Deploy-time switch. PIN_ON = false ships the CATALOG below as a fixed list: search
+// still works and every code in the dataset is still findable, but nothing can be
+// pinned, unpinned or cleared, and a list saved by an earlier build cannot override it.
+const PIN_ON = false;
+
 // Moscow, ID (83843) -- Latah County is on the CMS rural ZIP list and in no former CBA
 const HOME = { state:"ID", zip:"83843", rural:true, cbaIdx:-1 };
 
 // Product lines carried by Northwest Respiratory & Medical (nwdme.com).
-// [group, HCPCS, modifier] -- the modifier is the one the item is normally billed under.
+// [group, HCPCS, modifier] -- the modifier is the one the item is normally billed under,
+// which tracks the CMS payment category: capped rental -> RR, routinely purchased -> NU,
+// lymphedema compression -> none, surgical dressing -> AW.
+// Where the client's product line and the CMS category disagree, CMS wins (see A6545).
 const CATALOG = [
   ["Sleep therapy", "E0601","RR"], ["Sleep therapy", "E0470","RR"], ["Sleep therapy", "E0471","RR"],
   ["Sleep therapy", "E0562","RR"],
@@ -381,51 +389,92 @@ const CATALOG = [
   ["Sleep therapy", "A7033","NU"], ["Sleep therapy", "A7034","NU"], ["Sleep therapy", "A7035","NU"],
   ["Sleep therapy", "A7036","NU"], ["Sleep therapy", "A7037","NU"], ["Sleep therapy", "A7038","NU"],
   ["Sleep therapy", "A7039","NU"], ["Sleep therapy", "A7046","NU"],
+  ["Sleep therapy", "A7027","NU"], ["Sleep therapy", "A7028","NU"], ["Sleep therapy", "A7029","NU"],
+  ["Sleep therapy", "A4604","NU"],
 
-  ["Oxygen", "E1390","RR"], ["Oxygen", "E1392","RR"], ["Oxygen", "E0431","RR"],
-  ["Oxygen", "E0424","RR"], ["Oxygen", "E0443",""],
-  ["Oxygen", "A4615",""], ["Oxygen", "A4616",""], ["Oxygen", "A4620",""],
+  ["Oxygen", "E1390","RR"], ["Oxygen", "E0431","RR"], ["Oxygen", "E0443",""],
 
-  ["Nebulizers", "E0570","RR"], ["Nebulizers", "A7003","NU"], ["Nebulizers", "A7004","NU"],
-  ["Nebulizers", "A7005","NU"], ["Nebulizers", "A7013","NU"],
+  ["Nebulizers", "E0570","RR"], ["Nebulizers", "A7004","NU"], ["Nebulizers", "A7005","NU"],
 
   ["Power mobility", "K0813","RR"], ["Power mobility", "K0820","RR"], ["Power mobility", "K0822","RR"],
   ["Power mobility", "K0823","RR"], ["Power mobility", "K0856","RR"], ["Power mobility", "K0861","RR"],
+  ["Power mobility", "K0821","RR"], ["Power mobility", "K0835","RR"], ["Power mobility", "K0841","RR"],
+  ["Power mobility", "K0843","RR"], ["Power mobility", "K0848","RR"], ["Power mobility", "K0862","RR"],
 
   ["Manual mobility", "K0001","RR"], ["Manual mobility", "K0002","RR"], ["Manual mobility", "K0003","RR"],
   ["Manual mobility", "K0004","RR"],
-  ["Manual mobility", "E0135","NU"], ["Manual mobility", "E0141","NU"], ["Manual mobility", "E0143","NU"],
-  ["Manual mobility", "E0154","NU"], ["Manual mobility", "E0155","NU"],
+  ["Manual mobility", "E0135","NU"], ["Manual mobility", "E0143","NU"], ["Manual mobility", "E0154","NU"],
   ["Manual mobility", "E0100","NU"], ["Manual mobility", "E0105","NU"],
+  ["Manual mobility", "E1161","RR"], ["Manual mobility", "E0111","NU"], ["Manual mobility", "E0149","RR"],
+  ["Manual mobility", "E0156","NU"], ["Manual mobility", "E0181","RR"], ["Manual mobility", "E0630","RR"],
+  ["Manual mobility", "E0163","NU"], ["Manual mobility", "E0165","RR"], ["Manual mobility", "E0168","NU"],
 
-  ["Lift chairs", "E0627","NU"], ["Lift chairs", "E0629","NU"],
+  ["Lift chairs", "E0627","NU"],
 
-  ["Beds & support", "E0260","RR"], ["Beds & support", "E0261","RR"], ["Beds & support", "E0265","RR"],
-  ["Beds & support", "E0266","RR"], ["Beds & support", "E0277","RR"],
-  ["Beds & support", "E0271","NU"], ["Beds & support", "E0272","NU"],
-  ["Beds & support", "E0305","RR"], ["Beds & support", "E0310","NU"],
+  ["Beds & support", "E0265","RR"], ["Beds & support", "E0266","RR"], ["Beds & support", "E0277","RR"],
+  ["Beds & support", "E0271","NU"], ["Beds & support", "E0272","NU"], ["Beds & support", "E0305","RR"],
 
   ["Breast pumps", "E0602","NU"],
+
+  ["Compression", "A6530",""], ["Compression", "A6533",""], ["Compression", "A6539",""],
+  ["Compression", "A6552",""], ["Compression", "A6534",""], ["Compression", "A6540",""],
+  ["Compression", "A6578",""], ["Compression", "A6582",""], ["Compression", "A6581",""],
+  ["Compression", "A6583",""], ["Compression", "A6587",""], ["Compression", "A6585",""],
+
+  // the client groups A6545 with the compression items above, but CMS classifies it as a
+  // surgical dressing billed under AW -- CMS wins, so it gets its own line
+  ["Surgical dressings", "A6545","AW"],
+
+  ["Wheelchair accessories", "E0951","NU"], ["Wheelchair accessories", "E0953","NU"],
+  ["Wheelchair accessories", "E0954","NU"], ["Wheelchair accessories", "E0956","NU"],
+  ["Wheelchair accessories", "E0960","NU"], ["Wheelchair accessories", "E0961","NU"],
+  ["Wheelchair accessories", "E0971","NU"], ["Wheelchair accessories", "E0973","NU"],
+  ["Wheelchair accessories", "E0978","NU"], ["Wheelchair accessories", "E2213","NU"],
+  ["Wheelchair accessories", "E2359","NU"], ["Wheelchair accessories", "E2361","NU"],
+  ["Wheelchair accessories", "E2363","NU"], ["Wheelchair accessories", "E2605","NU"],
+  ["Wheelchair accessories", "E2607","NU"], ["Wheelchair accessories", "E2615","NU"],
+  ["Wheelchair accessories", "E2620","NU"], ["Wheelchair accessories", "E2622","NU"],
+  ["Wheelchair accessories", "E2624","NU"],
+  ["Wheelchair accessories", "E0955","RR"], ["Wheelchair accessories", "E1002","RR"],
+  ["Wheelchair accessories", "E1007","RR"], ["Wheelchair accessories", "E1012","RR"],
+  ["Wheelchair accessories", "E1028","RR"], ["Wheelchair accessories", "E2298","RR"],
+  ["Wheelchair accessories", "E2310","RR"], ["Wheelchair accessories", "E2311","RR"],
+  ["Wheelchair accessories", "E2313","RR"], ["Wheelchair accessories", "E2377","RR"],
 ];
-const defaultPins = () => CATALOG.map(([g, code, mod]) => ({k:code+"|"+mod+"|", g}));
+const defaultPins = () => CATALOG.map(([, code, mod]) => ({k:code+"|"+mod+"|"}));
+
+// a pin's section is derived from the catalog, never stored -- so a code pinned by
+// hand files itself under its own product line instead of a generic bucket, and an
+// unpin/repin round trip puts it back where it started
+const CODEGROUP = new Map(CATALOG.map(([g, code]) => [code, g]));
+const GROUPRANK = new Map([...new Set(CATALOG.map(([g]) => g))].map((g, n) => [g, n]));
+const OTHER = "Pinned";                                  // codes the catalog doesn't carry
+const groupOf = k => CODEGROUP.get(k.split("|")[0]) || OTHER;
+const rankOf = g => GROUPRANK.has(g) ? GROUPRANK.get(g) : GROUPRANK.size;
 
 let loc = Object.assign({}, HOME);
 let pins = [];
 let collapsed = [];   // group names folded shut; everything starts open
 
+let storedPins = null;   // kept verbatim while PIN_ON is off, so turning it back on restores the list
+
 function load(){
   let s = null;
   try{ s = JSON.parse(localStorage.getItem(LS) || "null"); }catch(e){}
-  if (!s){ pins = defaultPins(); return; }          // first run: ship the catalog
+  pins = defaultPins();                             // first run, and the fixed list when pinning is off
+  if (!s) return;
   if (s.loc) loc = Object.assign(loc, s.loc);
-  if (Array.isArray(s.pins))
-    pins = s.pins.map(p => typeof p === "string" ? {k:p, g:"Pinned"} : p)
-                 .filter(p => p && typeof p.k === "string");
   if (Array.isArray(s.collapsed))
     collapsed = s.collapsed.filter(x => typeof x === "string");
+  if (Array.isArray(s.pins)) storedPins = s.pins;
+  if (!PIN_ON || !storedPins) return;               // a saved list can never override the catalog
+  pins = storedPins.map(p => typeof p === "string" ? {k:p} : p)   // pre-v1 pins were bare keys
+                   .filter(p => p && typeof p.k === "string")
+                   .map(p => ({k:p.k}));                          // drop any stored group
 }
 function save(){
-  try{ localStorage.setItem(LS, JSON.stringify({loc, pins, collapsed})); }catch(e){}
+  const keep = PIN_ON ? pins : storedPins;          // don't clobber a list we're not letting them edit
+  try{ localStorage.setItem(LS, JSON.stringify({loc, pins:keep, collapsed})); }catch(e){}
 }
 
 /* ---------------- data load ---------------- */
@@ -670,7 +719,7 @@ function card(i, isNew){
     </div>`}
     ${spread}
     <div class="acts">
-      <button class="btn" data-act="pin" data-i="${i}">${pinned(i) ? "Unpin" : "Pin"}</button>
+      ${PIN_ON ? `<button class="btn" data-act="pin" data-i="${i}">${pinned(i) ? "Unpin" : "Pin"}</button>` : ``}
       <button class="btn" data-act="copy" data-i="${i}">Copy</button>
     </div>
     <div class="${cls}">${note}</div>`;
@@ -686,22 +735,25 @@ function indexOfKey(k){
   const idxs = CODEIDX.get(k.split("|")[0]) || [];
   return idxs.find(i => keyOf(i) === k);
 }
-// pins grouped in catalog order, skipping any key the current dataset no longer has
+// pins grouped in catalog order, skipping any key the current dataset no longer has.
+// a group appears the moment its first code is pinned and disappears with its last.
 function pinGroups(){
   const groups = new Map();
   for (const p of pins){
     const i = indexOfKey(p.k);
     if (i === undefined) continue;
-    const g = p.g || "Pinned";
+    const g = groupOf(p.k);
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(i);
   }
-  return groups;
+  // catalog order regardless of when each code was pinned; off-catalog codes last
+  return new Map([...groups].sort((a, b) => rankOf(a[0]) - rankOf(b[0])));
 }
 function togglePin(i){
+  if (!PIN_ON) return;
   const k = keyOf(i);
   if (pinned(i)) pins = pins.filter(p => p.k !== k);
-  else pins.push({k, g:"Pinned"});
+  else pins.push({k});
   save(); renderPins(); render();
 }
 
@@ -740,7 +792,7 @@ function rowEl(i, withX){
     <span class="rv">${r.amt>0 ? usd(r.amt) + (isRental(row)?"/mo":"") : "&mdash;"}</span>`;
   main.addEventListener("click", () => { $("#q").value = row[0]; render(); $("#q").select(); });
   el.appendChild(main);
-  if (withX){
+  if (withX && PIN_ON){
     const x = document.createElement("button");
     x.className = "rx"; x.textContent = "\u00d7";
     x.setAttribute("aria-label", "Unpin " + row[0]);
@@ -756,9 +808,12 @@ function renderPins(){
   wrap.hidden = false;
   box.innerHTML = "";
   if (!groups.size){
-    box.innerHTML = `<div class="empty">No codes pinned. Search a code and press
-      <kbd>&#8629;</kbd> to pin it, or <button class="link" id="restore">load the catalog</button>.</div>`;
-    $("#restore").addEventListener("click", () => { pins = defaultPins(); save(); renderPins(); render(); });
+    box.innerHTML = PIN_ON
+      ? `<div class="empty">No codes pinned. Search a code and press
+         <kbd>&#8629;</kbd> to pin it, or <button class="link" id="restore">load the catalog</button>.</div>`
+      : `<div class="empty">No codes to show.</div>`;
+    if (PIN_ON)
+      $("#restore").addEventListener("click", () => { pins = defaultPins(); save(); renderPins(); render(); });
     return;
   }
   let n = 0;
@@ -963,7 +1018,7 @@ $("#q").addEventListener("keydown", e => {
   if (e.key === "Enter"){
     const res = search($("#q").value);
     if (res.length){
-      if (!pinned(res[0])) togglePin(res[0]);
+      if (PIN_ON && !pinned(res[0])) togglePin(res[0]);
       $("#q").select();
     }
   } else if (e.key === "Escape"){
@@ -984,6 +1039,11 @@ $("#results").addEventListener("click", e => {
 });
 $("#copyall").addEventListener("click", () => copy(copyText()));
 $("#clearpins").addEventListener("click", () => { pins = []; save(); renderPins(); render(); });
+if (!PIN_ON){                       // nothing is pinned, nothing to clear, no key to pin with
+  $("#pinlabel").hidden = true;
+  $("#clearpins").hidden = true;
+  $("#hintpin").hidden = true;
+}
 
 /* ---------------- locality dialog ---------------- */
 const dlg = $("#locdlg");
