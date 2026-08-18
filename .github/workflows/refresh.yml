@@ -32,7 +32,7 @@ jobs:
       - name: Is a newer CMS quarter published?
         id: check
         run: |
-          if python3 build.py --check; then
+          if python3 scripts/build.py --check; then
             echo "behind=false" >> "$GITHUB_OUTPUT"
           else
             echo "behind=true"  >> "$GITHUB_OUTPUT"
@@ -40,7 +40,7 @@ jobs:
 
       - name: Rebuild the page
         if: steps.check.outputs.behind == 'true'
-        run: python3 build.py
+        run: python3 scripts/build.py
 
       - name: Commit the new rates
         if: steps.check.outputs.behind == 'true'

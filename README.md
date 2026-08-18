@@ -6,27 +6,31 @@ with no server and no CMS lookups.
 
 Defaults are set for **Latah County, Idaho (ZIP 83843)** — on the CMS rural ZIP
 list and in no former competitive-bidding area — with NWRM's product lines
-pinned in eight collapsible groups.
+listed in 11 collapsible groups. The search box filters that list; a leading
+`/` searches the whole fee schedule instead.
 
 ## Files
 
+The repository root is exactly what gets served; everything else is either a
+source or a tool.
+
 | File | What it is |
 | --- | --- |
-| `index.html` | The built page. This is the only file the user needs. Never edit it -- `build.py` overwrites it. |
-| `template.html` | The page shell: markup, plus `__CSS__`, `__JS__` and `__DATA__` placeholders. Holds the one script that must run before first paint. |
-| `app.css` | All the styling. |
-| `app.js` | The whole application. |
-| `build.py` | Downloads the newest CMS quarter and inlines the four sources into `index.html`. Standard library only. |
+| `index.html` | The built page. This is the only file the user needs. Never edit it -- `scripts/build.py` overwrites it. |
+| `manifest.json`, `sw.js`, `icon-*.png` | Make it installable as a desktop app that works offline. `sw.js` has to sit at the root or its scope no longer covers the page. |
+| `src/template.html` | The page shell: markup, plus `__CSS__`, `__JS__` and `__DATA__` placeholders. Holds the one script that must run before first paint. |
+| `src/app.css` | All the styling. |
+| `src/app.js` | The whole application. |
+| `scripts/build.py` | Downloads the newest CMS quarter and inlines the three sources into `index.html`. Standard library only. |
+| `scripts/make_icons.py` | Regenerates the icons into the root. Only needed if the mark changes. |
 | `.github/workflows/refresh.yml` | Daily check + automatic rebuild and commit. |
-| `manifest.json`, `sw.js`, `icon-*.png` | Make it installable as a desktop app that works offline. |
-| `make_icons.py` | Regenerates the icons. Only needed if the mark changes. |
 
 ## Rebuilding
 
 ```bash
-python3 build.py            # find the newest published quarter, rebuild index.html
-python3 build.py --check    # report status only; exits 1 if index.html is behind
-python3 build.py --quarter 2026-c   # pin a specific quarter
+python3 scripts/build.py            # find the newest published quarter, rebuild index.html
+python3 scripts/build.py --check    # report status only; exits 1 if index.html is behind
+python3 scripts/build.py --quarter 2026-c   # pin a specific quarter
 ```
 
 Takes about two seconds and needs no dependencies.
@@ -35,16 +39,16 @@ The sources are split for editing only -- so an editor can lint and highlight
 real `.css` and `.js` files. The page still ships as a single file on purpose:
 it has to survive a `file://` double-click and a thumb drive, and the service
 worker caches it as one unit. Nothing is fetched at runtime, so `app.css` and
-`app.js` are build inputs, not assets. Run `build.py` after touching any of
-them, and commit `index.html` with the change.
+`app.js` are build inputs, not assets. Run `scripts/build.py` after touching any
+of them, and commit `index.html` with the change.
 
-`build.py` locates the four source CSVs by pattern rather than by name, because
+`scripts/build.py` locates the four source CSVs by pattern rather than by name, because
 CMS renames them between quarters (`DMEPOS_JUL.csv` in July 2026,
 `DMEPOS26_JAN.csv` in January; `Zip` vs `ZIP` in the rural file). It refuses to
 write a page containing non-ASCII characters, since the published copy relies on
 the host's charset.
 
-**After editing `template.html`, run `build.py` to regenerate `index.html`.**
+**After editing anything in `src/`, run `scripts/build.py` to regenerate `index.html`.**
 
 ## How CMS publishes
 
@@ -58,7 +62,7 @@ Verified back to 2024:
 | October | `dme{YY}-d.zip` |
 
 Updates are quarterly "as necessary" — April and October files sometimes never
-appear. So both `build.py` and the page itself probe for a file rather than
+appear. So both `scripts/build.py` and the page itself probe for a file rather than
 assuming one exists because the calendar turned over.
 
 The page runs the same check on open: a zero-byte `HEAD` against cms.gov, which
