@@ -12,10 +12,12 @@ pinned in eight collapsible groups.
 
 | File | What it is |
 | --- | --- |
-| `index.html` | The built page. This is the only file the user needs. |
-| `template.html` | The page source, with a `__DATA__` placeholder for the fee schedule. Edit this, never `index.html`. |
-| `build.py` | Downloads the newest CMS quarter and writes `index.html`. Standard library only. |
-| `.github/workflows/refresh.yml` | Weekly check + automatic rebuild and commit. |
+| `index.html` | The built page. This is the only file the user needs. Never edit it -- `build.py` overwrites it. |
+| `template.html` | The page shell: markup, plus `__CSS__`, `__JS__` and `__DATA__` placeholders. Holds the one script that must run before first paint. |
+| `app.css` | All the styling. |
+| `app.js` | The whole application. |
+| `build.py` | Downloads the newest CMS quarter and inlines the four sources into `index.html`. Standard library only. |
+| `.github/workflows/refresh.yml` | Daily check + automatic rebuild and commit. |
 | `manifest.json`, `sw.js`, `icon-*.png` | Make it installable as a desktop app that works offline. |
 | `make_icons.py` | Regenerates the icons. Only needed if the mark changes. |
 
@@ -28,6 +30,13 @@ python3 build.py --quarter 2026-c   # pin a specific quarter
 ```
 
 Takes about two seconds and needs no dependencies.
+
+The sources are split for editing only -- so an editor can lint and highlight
+real `.css` and `.js` files. The page still ships as a single file on purpose:
+it has to survive a `file://` double-click and a thumb drive, and the service
+worker caches it as one unit. Nothing is fetched at runtime, so `app.css` and
+`app.js` are build inputs, not assets. Run `build.py` after touching any of
+them, and commit `index.html` with the change.
 
 `build.py` locates the four source CSVs by pattern rather than by name, because
 CMS renames them between quarters (`DMEPOS_JUL.csv` in July 2026,

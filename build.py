@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Rebuild index.html from the current CMS DMEPOS fee schedule.
 
-Finds the newest quarterly file CMS has published, downloads it, and embeds the
-data into template.html. Standard library only -- no pip install, so this runs
-anywhere Python 3.8+ exists, including a bare CI runner.
+Finds the newest quarterly file CMS has published, downloads it, and inlines it
+with template.html, app.css and app.js into one self-contained page. Standard
+library only -- no pip install, so this runs anywhere Python 3.8+ exists,
+including a bare CI runner.
 
     python3 build.py            # rebuild from the newest published quarter
     python3 build.py --check    # say what's newest and whether we're behind (exit 1 if behind)
@@ -31,6 +32,8 @@ from datetime import date
 BASE = "https://www.cms.gov/files/zip/{}.zip"
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(HERE, "template.html")
+STYLES = os.path.join(HERE, "app.css")
+SCRIPT = os.path.join(HERE, "app.js")
 OUTPUT = os.path.join(HERE, "index.html")
 UA = {"User-Agent": "nwrm-dmepos-builder/1.0"}
 
@@ -216,6 +219,30 @@ def parse_zip_rows(rows):
 
 
 # ---------------------------------------------------------------- build
+def render_page(b64):
+    """template.html + app.css + app.js + the CMS payload -> one self-contained page.
+
+    The sources are split for editing only. The page itself ships as a single file
+    on purpose: it has to work from a thumb drive or a file:// double-click, and the
+    service worker caches it as one unit, so the inlining happens here and never in
+    the browser. The early theme script stays in template.html because it has to run
+    before first paint.
+    """
+    with open(TEMPLATE, encoding="utf-8") as fh:
+        page = fh.read()
+    for token, path in (("__CSS__", STYLES), ("__JS__", SCRIPT)):
+        if token not in page:
+            raise SystemExit("template.html has no {} placeholder.".format(token))
+        with open(path, encoding="utf-8") as fh:
+            page = page.replace(token, fh.read().rstrip("\n"))
+    if "__DATA__" not in page:
+        raise SystemExit("template.html has no __DATA__ placeholder.")
+    page = page.replace("__DATA__", b64)
+    if any(ord(c) > 127 for c in page):
+        raise SystemExit("Built page contains non-ASCII characters; use HTML entities or \\u escapes.")
+    return page
+
+
 def build(year, q, blob, url):
     zf = zipfile.ZipFile(io.BytesIO(blob))
     names = zf.namelist()
@@ -261,15 +288,7 @@ def build(year, q, blob, url):
     raw = json.dumps(bundle, separators=(",", ":")).encode()
     b64 = base64.b64encode(gzip.compress(raw, 9)).decode()
 
-    with open(TEMPLATE, encoding="utf-8") as fh:
-        template = fh.read()
-    if "__DATA__" not in template:
-        raise SystemExit("template.html has no __DATA__ placeholder.")
-    page = template.replace("__DATA__", b64)
-
-    if any(ord(c) > 127 for c in page):
-        raise SystemExit("Built page contains non-ASCII characters; use HTML entities or \\u escapes.")
-
+    page = render_page(b64)
     with open(OUTPUT, "w", encoding="utf-8") as fh:
         fh.write(page)
 
