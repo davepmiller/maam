@@ -6,9 +6,9 @@ with template.html, app.css and app.js into one self-contained page. Standard
 library only -- no pip install, so this runs anywhere Python 3.8+ exists,
 including a bare CI runner.
 
-    python3 build.py            # rebuild from the newest published quarter
-    python3 build.py --check    # say what's newest and whether we're behind (exit 1 if behind)
-    python3 build.py --quarter 2026-c
+    python3 scripts/build.py            # rebuild from the newest published quarter
+    python3 scripts/build.py --check    # say what's newest and whether we're behind (exit 1 if behind)
+    python3 scripts/build.py --quarter 2026-c
 
 CMS naming, verified back to 2024: the January file is dme{YY}.zip and later
 quarters are dme{YY}-b (April), -c (July), -d (October). Quarters are published
@@ -31,10 +31,11 @@ from datetime import date
 
 BASE = "https://www.cms.gov/files/zip/{}.zip"
 HERE = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE = os.path.join(HERE, "template.html")
-STYLES = os.path.join(HERE, "app.css")
-SCRIPT = os.path.join(HERE, "app.js")
-OUTPUT = os.path.join(HERE, "index.html")
+ROOT = os.path.dirname(HERE)                 # sources live in src/, the page ships from the root
+TEMPLATE = os.path.join(ROOT, "src", "template.html")
+STYLES = os.path.join(ROOT, "src", "app.css")
+SCRIPT = os.path.join(ROOT, "src", "app.js")
+OUTPUT = os.path.join(ROOT, "index.html")
 UA = {"User-Agent": "nwrm-dmepos-builder/1.0"}
 
 QNAME = {1: "January", 2: "April", 3: "July", 4: "October"}

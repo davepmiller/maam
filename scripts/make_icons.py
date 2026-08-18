@@ -5,7 +5,7 @@ The mark is the page's own signature element: the locality spread, where faint
 ticks are every state's rate and the brass one is yours. Drawn at 4x and boxed
 down, so the edges stay clean without an imaging library.
 
-    python3 make_icons.py
+    python3 scripts/make_icons.py
 """
 
 import os
@@ -13,6 +13,7 @@ import struct
 import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)                 # icons ship from the root, next to index.html
 
 GROUND = (0x12, 0x16, 0x1B, 255)   # --ground, dark
 RAIL   = (0x2C, 0x35, 0x3F, 255)   # --line
@@ -127,7 +128,7 @@ def main():
         (512, False, "icon-512.png"),
         (512, True,  "icon-maskable-512.png"),
     ]:
-        path = os.path.join(HERE, name)
+        path = os.path.join(ROOT, name)
         write_png(path, render(size, maskable), size, size)
         print("wrote {:<24} {:>7} bytes".format(name, os.path.getsize(path)))
 
